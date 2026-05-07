@@ -8,7 +8,7 @@ import requests
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
-from amazon_report.fetch import search, FetchError, DEFAULT_MAX_PRICE
+from amazon_report.fetch import search, FetchError, DEFAULT_MAX_PRICE, DEFAULT_MIN_PRICE
 from amazon_report.models import Product
 from amazon_report.rank import rank, RankError
 from amazon_report.render import render
@@ -50,6 +50,16 @@ def _positive_float(raw: str) -> float:
     return v
 
 
+def _non_negative_float(raw: str) -> float:
+    try:
+        v = float(raw)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a number: {raw!r}")
+    if v < 0:
+        raise argparse.ArgumentTypeError(f"must be >= 0: {v}")
+    return v
+
+
 def _build_argparser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         prog="amazon-report",
@@ -66,6 +76,12 @@ def _build_argparser() -> argparse.ArgumentParser:
         default=DEFAULT_MAX_PRICE,
         help=f"Price cap in USD (default: {DEFAULT_MAX_PRICE:g}).",
     )
+    ap.add_argument(
+        "--min-price",
+        type=_non_negative_float,
+        default=DEFAULT_MIN_PRICE,
+        help=f"Price floor in USD (default: {DEFAULT_MIN_PRICE:g}, off).",
+    )
     return ap
 
 
@@ -75,25 +91,39 @@ def main() -> None:
     args = _build_argparser().parse_args()
     keywords: list[str] = args.keywords
     max_price: float = args.max_price
+    min_price: float = args.min_price
+    if min_price >= max_price:
+        print(
+            f"--min-price ({min_price:g}) must be less than --max-price ({max_price:g}).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
-    print(f"Fetching candidates for {len(keywords)} keyword(s) under ${max_price:g}...")
+    range_label = (
+        f"${min_price:g}–${max_price:g}" if min_price > 0 else f"under ${max_price:g}"
+    )
+    print(f"Fetching candidates for {len(keywords)} keyword(s) {range_label}...")
     session = requests.Session()
     candidates: list[Product] = []
     for kw in keywords:
         try:
             results = search(
-                kw, api_key=env["RAPIDAPI_KEY"], session=session, max_price=max_price
+                kw,
+                api_key=env["RAPIDAPI_KEY"],
+                session=session,
+                max_price=max_price,
+                min_price=min_price,
             )
         except FetchError as e:
             print(f"  ! \"{kw}\" failed: {e}", file=sys.stderr)
             continue
-        print(f"  - \"{kw}\": {len(results)} under ${max_price:g}")
+        print(f"  - \"{kw}\": {len(results)} in {range_label}")
         candidates.extend(results)
 
     candidates = _dedup_by_asin(candidates)
 
     if not candidates:
-        print(f"No products under ${max_price:g} found for keywords: {', '.join(keywords)}")
+        print(f"No products {range_label} found for keywords: {', '.join(keywords)}")
         return
 
     print(f"Ranking {len(candidates)} candidates with Claude...")

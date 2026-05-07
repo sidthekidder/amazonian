@@ -8,6 +8,7 @@ from amazon_report.models import Product
 RAPIDAPI_HOST = "real-time-amazon-data.p.rapidapi.com"
 SEARCH_URL = f"https://{RAPIDAPI_HOST}/search"
 DEFAULT_MAX_PRICE = 20.0
+DEFAULT_MIN_PRICE = 0.0
 RETRIES = 3
 BACKOFF_BASE = 1.0
 
@@ -39,14 +40,16 @@ def _parse_rating(raw: Any) -> float | None:
 
 
 def parse_search_response(
-    payload: dict[str, Any], max_price: float = DEFAULT_MAX_PRICE
+    payload: dict[str, Any],
+    max_price: float = DEFAULT_MAX_PRICE,
+    min_price: float = DEFAULT_MIN_PRICE,
 ) -> list[Product]:
-    """Pure function: take RapidAPI JSON, return Products with price < max_price."""
+    """Pure function: take RapidAPI JSON, return Products in [min_price, max_price)."""
     items = payload.get("data", {}).get("products", []) or []
     out: list[Product] = []
     for item in items:
         price = _parse_price(item.get("product_price"))
-        if price is None or price >= max_price:
+        if price is None or price >= max_price or price < min_price:
             continue
         asin = item.get("asin")
         title = item.get("product_title")
@@ -71,14 +74,23 @@ def search(
     api_key: str,
     session: requests.Session | None = None,
     max_price: float = DEFAULT_MAX_PRICE,
+    min_price: float = DEFAULT_MIN_PRICE,
 ) -> list[Product]:
-    """Search RapidAPI and return parsed products under max_price. Retries on 429/5xx."""
+    """Search RapidAPI and return parsed products in [min_price, max_price). Retries on 429/5xx."""
     sess = session or requests.Session()
     headers = {
         "X-RapidAPI-Key": api_key,
         "X-RapidAPI-Host": RAPIDAPI_HOST,
     }
-    params = {"query": keyword, "country": "US"}
+    params: dict[str, Any] = {
+        "query": keyword,
+        "country": "US",
+        "sort_by": "HIGHEST_PRICE",
+    }
+    if min_price > 0:
+        params["min_price"] = str(min_price)
+    if max_price > 0:
+        params["max_price"] = str(max_price)
     last_err: Exception | None = None
     for attempt in range(RETRIES):
         try:
@@ -92,7 +104,9 @@ def search(
                 time.sleep(BACKOFF_BASE * (2 ** attempt))
                 continue
             resp.raise_for_status()
-            return parse_search_response(resp.json(), max_price=max_price)
+            return parse_search_response(
+                resp.json(), max_price=max_price, min_price=min_price
+            )
         except requests.RequestException as e:
             last_err = e
             time.sleep(BACKOFF_BASE * (2 ** attempt))
