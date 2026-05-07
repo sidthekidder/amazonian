@@ -46,6 +46,10 @@ amazon-report [--min-price MIN] [--max-price MAX] keywords [keywords ...]
 Defaults: min `0`, max `20`. Results are sorted by highest price first to
 fight Amazon's bias toward cheap high-volume listings.
 
+> Each keyword issues **3 RapidAPI search calls** (high / low / middle-third of
+> the price range) and dedups by ASIN. This keeps candidates price-diverse and
+> avoids clustering at the top of wide ranges, at the cost of 3× quota.
+
 ## Architecture
 
 ```
