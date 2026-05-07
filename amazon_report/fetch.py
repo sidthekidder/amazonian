@@ -7,7 +7,7 @@ from amazon_report.models import Product
 
 RAPIDAPI_HOST = "real-time-amazon-data.p.rapidapi.com"
 SEARCH_URL = f"https://{RAPIDAPI_HOST}/search"
-PRICE_CAP = 20.0
+DEFAULT_MAX_PRICE = 20.0
 RETRIES = 3
 BACKOFF_BASE = 1.0
 
@@ -38,13 +38,15 @@ def _parse_rating(raw: Any) -> float | None:
         return None
 
 
-def parse_search_response(payload: dict[str, Any]) -> list[Product]:
-    """Pure function: take RapidAPI JSON, return Products with price < PRICE_CAP."""
+def parse_search_response(
+    payload: dict[str, Any], max_price: float = DEFAULT_MAX_PRICE
+) -> list[Product]:
+    """Pure function: take RapidAPI JSON, return Products with price < max_price."""
     items = payload.get("data", {}).get("products", []) or []
     out: list[Product] = []
     for item in items:
         price = _parse_price(item.get("product_price"))
-        if price is None or price >= PRICE_CAP:
+        if price is None or price >= max_price:
             continue
         asin = item.get("asin")
         title = item.get("product_title")
@@ -64,8 +66,13 @@ def parse_search_response(payload: dict[str, Any]) -> list[Product]:
     return out
 
 
-def search(keyword: str, api_key: str, session: requests.Session | None = None) -> list[Product]:
-    """Search RapidAPI and return parsed products under $20. Retries on 429/5xx."""
+def search(
+    keyword: str,
+    api_key: str,
+    session: requests.Session | None = None,
+    max_price: float = DEFAULT_MAX_PRICE,
+) -> list[Product]:
+    """Search RapidAPI and return parsed products under max_price. Retries on 429/5xx."""
     sess = session or requests.Session()
     headers = {
         "X-RapidAPI-Key": api_key,
@@ -85,7 +92,7 @@ def search(keyword: str, api_key: str, session: requests.Session | None = None) 
                 time.sleep(BACKOFF_BASE * (2 ** attempt))
                 continue
             resp.raise_for_status()
-            return parse_search_response(resp.json())
+            return parse_search_response(resp.json(), max_price=max_price)
         except requests.RequestException as e:
             last_err = e
             time.sleep(BACKOFF_BASE * (2 ** attempt))

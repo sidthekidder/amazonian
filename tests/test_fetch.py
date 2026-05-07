@@ -23,6 +23,13 @@ def test_parse_price_returns_none_for_missing():
     assert _parse_price("") is None
 
 
+def test_parse_search_response_respects_custom_max_price():
+    # cap at $10 — only $8.50 item survives
+    products = parse_search_response(FIXTURE, max_price=10.0)
+    asins = [p["asin"] for p in products]
+    assert asins == ["B0AAA00002"]
+
+
 def test_parse_search_response_filters_to_under_20():
     products = parse_search_response(FIXTURE)
     asins = [p["asin"] for p in products]

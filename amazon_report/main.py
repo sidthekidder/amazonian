@@ -8,7 +8,7 @@ import requests
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
-from amazon_report.fetch import search, FetchError
+from amazon_report.fetch import search, FetchError, DEFAULT_MAX_PRICE
 from amazon_report.models import Product
 from amazon_report.rank import rank, RankError
 from amazon_report.render import render
@@ -40,15 +40,31 @@ def _dedup_by_asin(products: list[Product]) -> list[Product]:
     return out
 
 
+def _positive_float(raw: str) -> float:
+    try:
+        v = float(raw)
+    except ValueError:
+        raise argparse.ArgumentTypeError(f"not a number: {raw!r}")
+    if v <= 0:
+        raise argparse.ArgumentTypeError(f"must be > 0: {v}")
+    return v
+
+
 def _build_argparser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(
         prog="amazon-report",
-        description="Find novel Amazon products under $20 and write an HTML report.",
+        description="Find novel Amazon products under a price cap and write an HTML report.",
     )
     ap.add_argument(
         "keywords",
         nargs="+",
         help="One or more search keywords (quote multi-word phrases).",
+    )
+    ap.add_argument(
+        "--max-price",
+        type=_positive_float,
+        default=DEFAULT_MAX_PRICE,
+        help=f"Price cap in USD (default: {DEFAULT_MAX_PRICE:g}).",
     )
     return ap
 
@@ -58,23 +74,26 @@ def main() -> None:
     env = _check_env()
     args = _build_argparser().parse_args()
     keywords: list[str] = args.keywords
+    max_price: float = args.max_price
 
-    print(f"Fetching candidates for {len(keywords)} keyword(s)...")
+    print(f"Fetching candidates for {len(keywords)} keyword(s) under ${max_price:g}...")
     session = requests.Session()
     candidates: list[Product] = []
     for kw in keywords:
         try:
-            results = search(kw, api_key=env["RAPIDAPI_KEY"], session=session)
+            results = search(
+                kw, api_key=env["RAPIDAPI_KEY"], session=session, max_price=max_price
+            )
         except FetchError as e:
             print(f"  ! \"{kw}\" failed: {e}", file=sys.stderr)
             continue
-        print(f"  - \"{kw}\": {len(results)} under $20")
+        print(f"  - \"{kw}\": {len(results)} under ${max_price:g}")
         candidates.extend(results)
 
     candidates = _dedup_by_asin(candidates)
 
     if not candidates:
-        print(f"No products under $20 found for keywords: {', '.join(keywords)}")
+        print(f"No products under ${max_price:g} found for keywords: {', '.join(keywords)}")
         return
 
     print(f"Ranking {len(candidates)} candidates with Claude...")
