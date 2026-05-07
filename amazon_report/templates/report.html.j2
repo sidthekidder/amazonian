@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Amazon Novelty Report — {{ generated_at }}</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #fafafa; margin: 0; padding: 2rem; color: #222; }
+    header { max-width: 1100px; margin: 0 auto 2rem; }
+    h1 { margin: 0 0 .5rem; font-size: 1.8rem; }
+    .meta { color: #666; font-size: .9rem; }
+    .grid { max-width: 1100px; margin: 0 auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1.5rem; }
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: 1rem; display: flex; flex-direction: column; }
+    .card img { width: 100%; height: 200px; object-fit: contain; background: #f0f0f0; border-radius: 8px; }
+    .title { font-weight: 600; font-size: 1rem; margin: .75rem 0 .25rem; line-height: 1.3; min-height: 2.6em; }
+    .price { color: #b12704; font-weight: 700; font-size: 1.1rem; }
+    .badge { display: inline-block; background: #ffefc4; color: #7a4f00; border-radius: 999px; padding: .15rem .6rem; font-size: .8rem; font-weight: 600; margin-left: .5rem; }
+    .reason { color: #444; font-size: .9rem; margin: .5rem 0 1rem; flex: 1; }
+    a.btn { display: block; text-align: center; background: #ffd814; color: #111; text-decoration: none; padding: .55rem; border-radius: 8px; font-weight: 600; font-size: .9rem; }
+    a.btn:hover { background: #f7ca00; }
+    .empty { color: #888; max-width: 1100px; margin: 0 auto; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Amazon Novelty Report</h1>
+    <div class="meta">
+      Generated {{ generated_at }} · Keywords: {{ keywords | join(", ") }} · {{ candidate_count }} candidates considered
+    </div>
+  </header>
+  {% if products %}
+  <div class="grid">
+    {% for p in products %}
+    <div class="card">
+      <img src="{{ p.image_url }}" alt="{{ p.title }}">
+      <div class="title">{{ p.title }} <span class="badge">{{ p.novelty_score }}/10</span></div>
+      <div class="price">${{ "%.2f"|format(p.price) }}</div>
+      <div class="reason">{{ p.reason }}</div>
+      <a class="btn" href="{{ p.product_url }}" target="_blank" rel="noopener">View on Amazon</a>
+    </div>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">No products to display.</div>
+  {% endif %}
+</body>
+</html>
