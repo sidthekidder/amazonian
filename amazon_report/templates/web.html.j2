@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Amazon Novelty Report</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #fafafa; margin: 0; padding: 2rem; color: #222; }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    h1 { margin: 0 0 .5rem; font-size: 1.8rem; }
+    .meta { color: #666; font-size: .9rem; margin-bottom: 1.5rem; }
+    form { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: 1.25rem; display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: .75rem; align-items: end; margin-bottom: 1.5rem; }
+    label { font-size: .75rem; color: #555; display: block; margin-bottom: .25rem; text-transform: uppercase; letter-spacing: .03em; }
+    input[type="text"], input[type="number"] { width: 100%; padding: .55rem .65rem; border: 1px solid #ccc; border-radius: 8px; font-size: .95rem; box-sizing: border-box; font-family: inherit; }
+    input:focus { outline: none; border-color: #ffd814; box-shadow: 0 0 0 3px rgba(255,216,20,.3); }
+    button { background: #ffd814; color: #111; border: none; padding: .6rem 1.5rem; border-radius: 8px; font-weight: 600; font-size: .95rem; cursor: pointer; height: 2.5rem; }
+    button:hover { background: #f7ca00; }
+    .error { background: #ffe5e5; color: #8b0000; padding: .75rem 1rem; border-radius: 8px; margin-bottom: 1.5rem; font-size: .9rem; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1.5rem; }
+    .card { background: #fff; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,.08); padding: 1rem; display: flex; flex-direction: column; }
+    .card img { width: 100%; height: 200px; object-fit: contain; background: #f0f0f0; border-radius: 8px; }
+    .title { font-weight: 600; font-size: 1rem; margin: .75rem 0 .25rem; line-height: 1.3; min-height: 2.6em; }
+    .price { color: #b12704; font-weight: 700; font-size: 1.1rem; }
+    .badge { display: inline-block; background: #ffefc4; color: #7a4f00; border-radius: 999px; padding: .15rem .6rem; font-size: .8rem; font-weight: 600; margin-left: .5rem; }
+    .reason { color: #444; font-size: .9rem; margin: .5rem 0 1rem; flex: 1; }
+    a.btn { display: block; text-align: center; background: #ffd814; color: #111; text-decoration: none; padding: .55rem; border-radius: 8px; font-weight: 600; font-size: .9rem; }
+    a.btn:hover { background: #f7ca00; }
+    .empty { color: #888; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Amazon Novelty Report</h1>
+    {% if generated_at %}
+    <div class="meta">Generated {{ generated_at }} · {{ candidate_count }} candidates considered</div>
+    {% else %}
+    <div class="meta">Enter keywords and a price range, then click Search. Searching can take 10–30 seconds.</div>
+    {% endif %}
+
+    <form method="post" action="/">
+      <div>
+        <label for="keywords">Keywords (comma-separated)</label>
+        <input type="text" id="keywords" name="keywords" value="{{ keywords_raw }}" placeholder="laptop stand, mechanical keyboard" required autofocus>
+      </div>
+      <div>
+        <label for="min_price">Min price ($)</label>
+        <input type="number" id="min_price" name="min_price" value="{{ '%g' | format(min_price) }}" min="0" step="0.01">
+      </div>
+      <div>
+        <label for="max_price">Max price ($)</label>
+        <input type="number" id="max_price" name="max_price" value="{{ '%g' | format(max_price) }}" min="0" step="0.01">
+      </div>
+      <button type="submit">Search</button>
+    </form>
+
+    {% if error %}
+    <div class="error">{{ error }}</div>
+    {% endif %}
+
+    {% if products %}
+    <div class="grid">
+      {% for p in products %}
+      <div class="card">
+        <img src="{{ p.image_url }}" alt="{{ p.title }}">
+        <div class="title">{{ p.title }} <span class="badge">{{ p.novelty_score }}/10</span></div>
+        <div class="price">${{ "%.2f"|format(p.price) }}</div>
+        <div class="reason">{{ p.reason }}</div>
+        <a class="btn" href="{{ p.product_url }}" target="_blank" rel="noopener">View on Amazon</a>
+      </div>
+      {% endfor %}
+    </div>
+    {% elif products is not none %}
+    <div class="empty">No products to display.</div>
+    {% endif %}
+  </div>
+</body>
+</html>
