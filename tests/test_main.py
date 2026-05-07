@@ -53,13 +53,13 @@ def test_main_runs_pipeline_and_writes_report(monkeypatch, tmp_path, capsys):
     fake_rank = MagicMock(return_value=[_ranked("A1"), _ranked("A2"), _ranked("A3")])
     fake_anthropic = MagicMock()
 
-    with patch("amazon_report.main.search", fake_search), \
+    with patch("amazon_report.main.multi_search", fake_search), \
          patch("amazon_report.main.rank", fake_rank), \
          patch("amazon_report.main.Anthropic", return_value=fake_anthropic):
         from amazon_report.main import main
         main()
 
-    # search called once per keyword
+    # multi_search called once per keyword
     assert fake_search.call_count == 2
     # rank called once with deduped list (3 unique products)
     fake_rank.assert_called_once()
@@ -82,7 +82,7 @@ def test_main_zero_candidates_exits_0(monkeypatch, tmp_path, capsys):
     fake_search = MagicMock(return_value=[])
     fake_rank = MagicMock()
 
-    with patch("amazon_report.main.search", fake_search), \
+    with patch("amazon_report.main.multi_search", fake_search), \
          patch("amazon_report.main.rank", fake_rank), \
          patch("amazon_report.main.Anthropic"):
         from amazon_report.main import main

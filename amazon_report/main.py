@@ -8,7 +8,7 @@ import requests
 from anthropic import Anthropic
 from dotenv import load_dotenv
 
-from amazon_report.fetch import search, FetchError, DEFAULT_MAX_PRICE, DEFAULT_MIN_PRICE
+from amazon_report.fetch import multi_search, FetchError, DEFAULT_MAX_PRICE, DEFAULT_MIN_PRICE
 from amazon_report.models import Product
 from amazon_report.rank import rank, RankError
 from amazon_report.render import render
@@ -107,7 +107,7 @@ def main() -> None:
     candidates: list[Product] = []
     for kw in keywords:
         try:
-            results = search(
+            results = multi_search(
                 kw,
                 api_key=env["RAPIDAPI_KEY"],
                 session=session,
@@ -117,7 +117,7 @@ def main() -> None:
         except FetchError as e:
             print(f"  ! \"{kw}\" failed: {e}", file=sys.stderr)
             continue
-        print(f"  - \"{kw}\": {len(results)} in {range_label}")
+        print(f"  - \"{kw}\": {len(results)} in {range_label} (3-slice)")
         candidates.extend(results)
 
     candidates = _dedup_by_asin(candidates)
