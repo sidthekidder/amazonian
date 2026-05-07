@@ -1,0 +1,45 @@
+{
+  "status": "OK",
+  "request_id": "abc-123",
+  "data": {
+    "total_products": 4,
+    "country": "US",
+    "domain": "www.amazon.com",
+    "products": [
+      {
+        "asin": "B0AAA00001",
+        "product_title": "Self-Stirring Mug with USB",
+        "product_price": "$14.99",
+        "product_original_price": "$19.99",
+        "product_star_rating": "4.3",
+        "product_num_ratings": 1234,
+        "product_url": "https://www.amazon.com/dp/B0AAA00001",
+        "product_photo": "https://m.media-amazon.com/images/I/aaa.jpg",
+        "product_minimum_offer_price": "$14.99",
+        "is_prime": true
+      },
+      {
+        "asin": "B0AAA00002",
+        "product_title": "Avocado Slicer 3-in-1 Tool",
+        "product_price": "$8.50",
+        "product_star_rating": "4.6",
+        "product_url": "https://www.amazon.com/dp/B0AAA00002",
+        "product_photo": "https://m.media-amazon.com/images/I/bbb.jpg"
+      },
+      {
+        "asin": "B0AAA00003",
+        "product_title": "Premium Cookware Set",
+        "product_price": "$129.99",
+        "product_url": "https://www.amazon.com/dp/B0AAA00003",
+        "product_photo": "https://m.media-amazon.com/images/I/ccc.jpg"
+      },
+      {
+        "asin": "B0AAA00004",
+        "product_title": "Cat-Shaped Tea Infuser",
+        "product_price": null,
+        "product_url": "https://www.amazon.com/dp/B0AAA00004",
+        "product_photo": "https://m.media-amazon.com/images/I/ddd.jpg"
+      }
+    ]
+  }
+}
