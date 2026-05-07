@@ -115,3 +115,20 @@ def test_search_gives_up_after_retries(monkeypatch):
     with pytest.raises(FetchError, match="failed after"):
         search("widgets", api_key="k", session=sess)
     assert sess.get.call_count == 3  # RETRIES
+
+
+def test_search_passes_sort_by_param(monkeypatch):
+    monkeypatch.setattr("amazon_report.fetch.time.sleep", lambda *_: None)
+    sess = MagicMock()
+    sess.get.return_value = _FakeResp(200, FIXTURE)
+    search("widgets", api_key="k", session=sess, sort_by="LOWEST_PRICE")
+    _, kwargs = sess.get.call_args
+    assert kwargs["params"]["sort_by"] == "LOWEST_PRICE"
+
+
+def test_search_default_sort_is_highest_price(monkeypatch):
+    sess = MagicMock()
+    sess.get.return_value = _FakeResp(200, FIXTURE)
+    search("widgets", api_key="k", session=sess)
+    _, kwargs = sess.get.call_args
+    assert kwargs["params"]["sort_by"] == "HIGHEST_PRICE"

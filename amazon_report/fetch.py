@@ -75,6 +75,7 @@ def search(
     session: requests.Session | None = None,
     max_price: float = DEFAULT_MAX_PRICE,
     min_price: float = DEFAULT_MIN_PRICE,
+    sort_by: str = "HIGHEST_PRICE",
 ) -> list[Product]:
     """Search RapidAPI and return parsed products in [min_price, max_price). Retries on 429/5xx."""
     sess = session or requests.Session()
@@ -85,7 +86,7 @@ def search(
     params: dict[str, Any] = {
         "query": keyword,
         "country": "US",
-        "sort_by": "HIGHEST_PRICE",
+        "sort_by": sort_by,
     }
     if min_price > 0:
         params["min_price"] = str(min_price)
