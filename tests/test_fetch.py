@@ -1,9 +1,10 @@
 import json
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
-from amazon_report.fetch import parse_search_response, _parse_price
+from amazon_report.fetch import parse_search_response, _parse_price, search, FetchError
 
 
 FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "rapidapi_search.json").read_text())
@@ -57,3 +58,53 @@ def test_parse_search_response_empty_when_no_products():
     assert parse_search_response({"data": {"products": []}}) == []
     assert parse_search_response({"data": {}}) == []
     assert parse_search_response({}) == []
+
+
+class _FakeResp:
+    def __init__(self, status: int, body: dict | None = None, text: str = ""):
+        self.status_code = status
+        self._body = body or {}
+        self.text = text
+
+    def json(self):
+        return self._body
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise Exception(f"HTTP {self.status_code}")
+
+
+def test_search_returns_parsed_products(monkeypatch):
+    sess = MagicMock()
+    sess.get.return_value = _FakeResp(200, FIXTURE)
+    out = search("widgets", api_key="k", session=sess)
+    assert len(out) == 2  # only the two under $20 with full fields
+    sess.get.assert_called_once()
+
+
+def test_search_raises_on_401():
+    sess = MagicMock()
+    sess.get.return_value = _FakeResp(401, text="unauthorized")
+    with pytest.raises(FetchError, match="auth failed"):
+        search("widgets", api_key="bad", session=sess)
+
+
+def test_search_retries_on_429_then_succeeds(monkeypatch):
+    monkeypatch.setattr("amazon_report.fetch.time.sleep", lambda *_: None)
+    sess = MagicMock()
+    sess.get.side_effect = [
+        _FakeResp(429, text="rate limited"),
+        _FakeResp(200, FIXTURE),
+    ]
+    out = search("widgets", api_key="k", session=sess)
+    assert len(out) == 2
+    assert sess.get.call_count == 2
+
+
+def test_search_gives_up_after_retries(monkeypatch):
+    monkeypatch.setattr("amazon_report.fetch.time.sleep", lambda *_: None)
+    sess = MagicMock()
+    sess.get.return_value = _FakeResp(503, text="down")
+    with pytest.raises(FetchError, match="failed after"):
+        search("widgets", api_key="k", session=sess)
+    assert sess.get.call_count == 3  # RETRIES
