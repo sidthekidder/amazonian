@@ -1,0 +1,31 @@
+[project]
+name = "amazon-report"
+version = "0.1.0"
+description = "Find novel Amazon products under $20 and write an HTML report."
+requires-python = ">=3.11"
+dependencies = [
+    "anthropic>=0.40.0",
+    "requests>=2.32.0",
+    "python-dotenv>=1.0.1",
+    "jinja2>=3.1.4",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0.0"]
+
+[project.scripts]
+amazon-report = "amazon_report.main:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["amazon_report*"]
+
+[tool.setuptools.package-data]
+amazon_report = ["templates/*.j2"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"
