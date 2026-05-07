@@ -12,7 +12,7 @@ from amazon_report.fetch import (
     DEFAULT_MAX_PRICE,
     DEFAULT_MIN_PRICE,
     FetchError,
-    search,
+    multi_search,
 )
 from amazon_report.models import Product
 from amazon_report.rank import RankError, rank
@@ -121,7 +121,7 @@ def create_app() -> Flask:
         fetch_errors: list[str] = []
         for kw in keywords:
             try:
-                results = search(
+                results = multi_search(
                     kw,
                     api_key=api_key,
                     session=session,
