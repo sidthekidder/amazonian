@@ -132,3 +132,107 @@ def test_search_default_sort_is_highest_price(monkeypatch):
     search("widgets", api_key="k", session=sess)
     _, kwargs = sess.get.call_args
     assert kwargs["params"]["sort_by"] == "HIGHEST_PRICE"
+
+
+from amazon_report.fetch import multi_search, PER_CALL_CAP, MID_SLICE_MIN_SPAN
+
+
+def _product(asin: str, price: float):
+    return {
+        "asin": asin,
+        "title": f"Item {asin}",
+        "price": price,
+        "image_url": "https://x",
+        "product_url": f"https://amazon.com/dp/{asin}",
+        "rating": None,
+        "description": None,
+    }
+
+
+def test_multi_search_makes_three_calls_for_wide_range(monkeypatch):
+    calls: list[dict] = []
+
+    def fake_search(keyword, api_key, session=None, max_price=20.0, min_price=0.0, sort_by="HIGHEST_PRICE"):
+        calls.append({"min": min_price, "max": max_price, "sort": sort_by})
+        return []
+
+    monkeypatch.setattr("amazon_report.fetch.search", fake_search)
+    multi_search("widgets", api_key="k", min_price=0.0, max_price=300.0)
+    assert len(calls) == 3
+    assert calls[0] == {"min": 0.0, "max": 300.0, "sort": "HIGHEST_PRICE"}
+    assert calls[1] == {"min": 0.0, "max": 300.0, "sort": "LOWEST_PRICE"}
+    assert calls[2] == {"min": 100.0, "max": 200.0, "sort": "HIGHEST_PRICE"}
+
+
+def test_multi_search_skips_mid_for_tight_range(monkeypatch):
+    calls: list[dict] = []
+
+    def fake_search(keyword, api_key, session=None, max_price=20.0, min_price=0.0, sort_by="HIGHEST_PRICE"):
+        calls.append({"min": min_price, "max": max_price, "sort": sort_by})
+        return []
+
+    monkeypatch.setattr("amazon_report.fetch.search", fake_search)
+    multi_search("widgets", api_key="k", min_price=10.0, max_price=14.0)
+    assert len(calls) == 2
+    assert all(c["max"] == 14.0 and c["min"] == 10.0 for c in calls)
+
+
+def test_multi_search_caps_each_call_at_per_call_cap(monkeypatch):
+    big_list_a = [_product(f"A{i}", 100.0 + i) for i in range(25)]
+    big_list_b = [_product(f"B{i}", 5.0 + i) for i in range(25)]
+    big_list_c = [_product(f"C{i}", 50.0 + i) for i in range(25)]
+    queue = [big_list_a, big_list_b, big_list_c]
+
+    def fake_search(*args, **kwargs):
+        return queue.pop(0)
+
+    monkeypatch.setattr("amazon_report.fetch.search", fake_search)
+    out = multi_search("widgets", api_key="k", min_price=0.0, max_price=300.0)
+    assert len(out) == 3 * PER_CALL_CAP
+    asins = {p["asin"] for p in out}
+    assert "A0" in asins and "A9" in asins and "A10" not in asins
+    assert "B0" in asins and "B9" in asins and "B10" not in asins
+    assert "C0" in asins and "C9" in asins and "C10" not in asins
+
+
+def test_multi_search_dedups_by_asin(monkeypatch):
+    high = [_product("X1", 250.0), _product("X2", 240.0)]
+    low = [_product("X3", 5.0), _product("X1", 250.0)]
+    mid = [_product("X4", 150.0), _product("X2", 240.0)]
+    queue = [high, low, mid]
+
+    def fake_search(*args, **kwargs):
+        return queue.pop(0)
+
+    monkeypatch.setattr("amazon_report.fetch.search", fake_search)
+    out = multi_search("widgets", api_key="k", min_price=0.0, max_price=300.0)
+    asins = [p["asin"] for p in out]
+    assert asins == ["X1", "X2", "X3", "X4"]
+
+
+def test_multi_search_partial_failure_returns_remaining(monkeypatch):
+    queue = [
+        [_product("A1", 250.0)],
+        FetchError("rate limited"),
+        [_product("C1", 150.0)],
+    ]
+
+    def fake_search(*args, **kwargs):
+        item = queue.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+    monkeypatch.setattr("amazon_report.fetch.search", fake_search)
+    out = multi_search("widgets", api_key="k", min_price=0.0, max_price=300.0)
+    asins = [p["asin"] for p in out]
+    assert asins == ["A1", "C1"]
+
+
+def test_multi_search_total_failure_raises(monkeypatch):
+    def fake_search(*args, **kwargs):
+        raise FetchError("boom")
+
+    monkeypatch.setattr("amazon_report.fetch.search", fake_search)
+    with pytest.raises(FetchError, match="boom"):
+        multi_search("widgets", api_key="k", min_price=0.0, max_price=300.0)

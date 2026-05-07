@@ -112,3 +112,57 @@ def search(
             last_err = e
             time.sleep(BACKOFF_BASE * (2 ** attempt))
     raise FetchError(f"RapidAPI request failed after {RETRIES} retries: {last_err}")
+
+
+PER_CALL_CAP = 10
+MID_SLICE_MIN_SPAN = 5.0
+
+
+def multi_search(
+    keyword: str,
+    api_key: str,
+    session: requests.Session | None = None,
+    max_price: float = DEFAULT_MAX_PRICE,
+    min_price: float = DEFAULT_MIN_PRICE,
+) -> list[Product]:
+    """Three price-anchored calls (high / low / middle-third), deduped by ASIN.
+
+    Returns up to ~30 products per keyword. Partial failures are swallowed; if
+    all calls fail the last FetchError is raised.
+    """
+    span = max_price - min_price
+    calls: list[tuple[float, float, str]] = [
+        (min_price, max_price, "HIGHEST_PRICE"),
+        (min_price, max_price, "LOWEST_PRICE"),
+    ]
+    if span >= MID_SLICE_MIN_SPAN:
+        calls.append((min_price + span / 3, max_price - span / 3, "HIGHEST_PRICE"))
+
+    pool: list[Product] = []
+    last_err: FetchError | None = None
+    for lo, hi, sort in calls:
+        try:
+            results = search(
+                keyword,
+                api_key=api_key,
+                session=session,
+                max_price=hi,
+                min_price=lo,
+                sort_by=sort,
+            )
+        except FetchError as e:
+            last_err = e
+            continue
+        pool.extend(results[:PER_CALL_CAP])
+
+    if not pool and last_err is not None:
+        raise last_err
+
+    seen: set[str] = set()
+    deduped: list[Product] = []
+    for p in pool:
+        if p["asin"] in seen:
+            continue
+        seen.add(p["asin"])
+        deduped.append(p)
+    return deduped
